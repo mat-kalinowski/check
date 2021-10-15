@@ -62,11 +62,11 @@ check_cherry_pick_and_push()
         # Remove script and ignore file from the delviery branch before final push.
         git rm --quiet release.sh
         git rm --quiet .release_ignore
-        git commit --signof -S --quiet --amend --no-edit
+        git commit --signoff -S --quiet --amend --no-edit
 
         # Change to: git push origin delivery
-        git tag --signof -S "$release_tag-dev" $development_branch
-        git tag --signof -S $release_tag HEAD
+        git tag --signoff -S "$release_tag-dev" $development_branch
+        git tag --signoff -S $release_tag HEAD
 
         if [[ $push = 1 ]]; then
             git push $remote HEAD:$delivery_branch
@@ -161,7 +161,7 @@ done
 git reset --quiet --soft $first_commit~1
 
 # Let the user type in commit message for the release commit.
-git commit --signof -S
+git commit --signoff -S
 
 # Abort if there is any cherry-pick currently in progress
 if [[ -f ".git/CHERRY_PICK_HEAD" ]]; then
