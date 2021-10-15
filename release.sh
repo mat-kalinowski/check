@@ -65,8 +65,8 @@ check_cherry_pick_and_push()
         git commit --signoff -S --quiet --amend --no-edit
 
         # Change to: git push origin delivery
-        git tag --signoff -S "$release_tag-dev" $development_branch
-        git tag --signoff -S $release_tag HEAD
+        git tag -s "$release_tag-dev" $development_branch
+        git tag -s $release_tag HEAD
 
         if [[ $push = 1 ]]; then
             git push $remote HEAD:$delivery_branch
