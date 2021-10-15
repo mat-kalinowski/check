@@ -1,5 +1,20 @@
 #!/bin/bash
 #
+#  Copyright (c) 2021 Arm Limited. All rights reserved.
+#  SPDX-License-Identifier: Apache-2.0
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 # This script automates release into delivery branch from development branch:
 # 1.) Applies chosen commits from current branch to local copy of the delivery
 #     branch.
@@ -9,11 +24,19 @@
 # Command line arguments:
 # $1 - first commit from which we start squashing up to HEAD.
 # $2 - TAG name which will be added to the commits on development and delivery branches.
-# $3 - optional '--continue' flag to continue execution after failed cherry-pick.
+#
+# Optional arguments after $1 and $2. Can be given in any order:
+# --continue - flag to continue execution after failed cherry-pick.
+# --no-push - script won't push branches to the remote
+# --remote=<remote_name> - change remote name to be pushed. By default it is origin.
 
 # Local development branch has to be named main.
 development_branch="main"
 delivery_branch="delivery"
+
+remote="origin"
+continue=0
+push=1
 
 # This function takes two arguments:
 # $1 - cherry pick command output.
@@ -28,7 +51,7 @@ check_cherry_pick_and_push()
         >&2 echo "Error: Couldn't cherry pick release commit on the delivery branch."
         >&2 echo "Note: Please do further steps:"
         >&2 echo "  1.) Check git message below."
-        >&2 echo "  2.) Reslove conflicts."
+        >&2 echo "  2.) Resolve conflicts."
         >&2 echo "  3.) Add files to the staging area."
         >&2 echo "  4.) Re-run script with --continue flag as a third argument.\n"
         >&2 echo "Git error:"
@@ -39,18 +62,27 @@ check_cherry_pick_and_push()
         # Remove script and ignore file from the delviery branch before final push.
         git rm --quiet release.sh
         git rm --quiet .release_ignore
-        git commit --quiet --amend --no-edit
+        git commit --signof -S --quiet --amend --no-edit
 
         # Change to: git push origin delivery
-        git tag "$release_tag-dev" $development_branch
-        git tag $release_tag HEAD
+        git tag --signof -S "$release_tag-dev" $development_branch
+        git tag --signof -S $release_tag HEAD
 
-        git push origin HEAD:$delivery_branch
-        git push origin tag $release_tag
-        git push origin tag "$release_tag-dev"
+        if [[ $push = 1 ]]; then
+            git push $remote HEAD:$delivery_branch
+            git push $remote tag $release_tag
+            git push $remote tag "$release_tag-dev"
+        fi
 
         git checkout --quiet $development_branch
-        git branch --quiet -D delivery-local current-copy
+
+        # If there is no push - leave delivery local branch for the user to have changes locally.
+        if [[ $push = 1 ]]; then
+            git branch --quiet -D delivery-local current-copy
+        else
+            git branch --quiet -D current-copy
+        fi
+
         exit 0
     fi
 }
@@ -74,7 +106,26 @@ fi
 first_commit=$1
 release_tag=$2
 
-if [[ "$3" = "--continue" ]]; then
+for i in "${@:3}"
+do
+case $i in
+    --continue)
+    continue=1
+    ;;
+    --remote=*)
+    remote="${i#*=}"
+    ;;
+    --no-push)
+    push=0
+    ;;
+    *)
+    echo "Error: unknown flag passed to the script"
+    exit 1
+    ;;
+esac
+done
+
+if [[ $continue = 1 ]]; then
     git rm --quiet -f release.sh
     git rm --quiet -f .release_ignore
 
@@ -98,7 +149,7 @@ readarray -t ignore_files < .release_ignore
 
 git fetch --quiet
 git branch --quiet current-copy
-git branch --quiet delivery-local "origin/$delivery_branch"
+git branch --quiet delivery-local "$remote/$delivery_branch"
 
 git checkout --quiet current-copy
 
@@ -110,7 +161,7 @@ done
 git reset --quiet --soft $first_commit~1
 
 # Let the user type in commit message for the release commit.
-git commit
+git commit --signof -S
 
 # Abort if there is any cherry-pick currently in progress
 if [[ -f ".git/CHERRY_PICK_HEAD" ]]; then
